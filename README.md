@@ -43,13 +43,13 @@ If you’re looking for a transcription API for meetings, consider checking out 
 
 <!-- <h2 align="left", id="what-is-it">What is it 🔎</h2> -->
 
-This repository provides fast automatic speech recognition (70x realtime with large-v2) with word-level timestamps and speaker diarization.
+This fork provides fast automatic speech recognition (70x realtime with large-v2) with word-level timestamps and Silero VAD. Speaker diarization is provided separately by the Atik Voice pipeline.
 
 - ⚡️ Batched inference for 70x realtime transcription using whisper large-v2
 - 🪶 [faster-whisper](https://github.com/guillaumekln/faster-whisper) backend, requires <8GB gpu memory for large-v2 with beam_size=5
 - 🎯 Accurate word-level timestamps using wav2vec2 alignment
-- 👯‍♂️ Multispeaker ASR using speaker diarization from [pyannote-audio](https://github.com/pyannote/pyannote-audio) (speaker ID labels)
-- 🗣️ VAD preprocessing, reduces hallucination & batching with no WER degradation
+- 🗣️ Silero VAD preprocessing, reducing hallucination & enabling batching with no WER degradation
+- 🎙️ External speaker diarization through Atik Voice's dedicated `diarize==0.1.2` stage
 
 **Whisper** is an ASR model [developed by OpenAI](https://github.com/openai/whisper), trained on a large dataset of diverse audio. Whilst it does produces highly accurate transcriptions, the corresponding timestamps are at the utterance-level, not per word, and can be inaccurate by several seconds. OpenAI's whisper does not natively support batching.
 
@@ -132,7 +132,7 @@ If Numba is installed, WhisperX will automatically use JIT-compiled alignment lo
 
 ### Speaker Diarization
 
-To **enable Speaker Diarization**, include your Hugging Face access token (read) that you can generate from [Here](https://huggingface.co/settings/tokens) after the `--hf_token` argument and accept the user agreement for the [speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1) model.
+This fork does not bundle speaker diarization. In Atik Voice, speaker diarization is performed by the separate `diarize==0.1.2` stage after WhisperX transcription/alignment.
 
 <h2 align="left" id="example">Usage 💬 (command line)</h2>
 
@@ -153,10 +153,6 @@ https://user-images.githubusercontent.com/36994049/207743923-b4f0d537-29ae-4be2-
 For increased timestamp accuracy, at the cost of higher gpu mem, use bigger models (bigger alignment model not found to be that helpful, see paper) e.g.
 
     whisperx path/to/audio.wav --model large-v2 --align_model WAV2VEC2_ASR_LARGE_LV60K_960H --batch_size 4
-
-To label the transcript with speaker ID's (set number of speakers if known e.g. `--min_speakers 2` `--max_speakers 2`):
-
-    whisperx path/to/audio.wav --model large-v2 --diarize --highlight_words True
 
 To maintain continuous context (ideal for technical language / punctuation), set interleaved_context=True:
 
@@ -191,7 +187,6 @@ See more examples in other languages [here](EXAMPLES.md).
 ```python
 import whisperx
 import gc
-from whisperx.diarize import DiarizationPipeline
 
 device = "cuda"
 audio_file = "audio.mp3"
@@ -222,16 +217,11 @@ print(result["segments"]) # after alignment
 # delete model if low on GPU resources
 # import gc; import torch; gc.collect(); torch.cuda.empty_cache(); del model_a
 
-# 3. Assign speaker labels
-diarize_model = DiarizationPipeline(token=YOUR_HF_TOKEN, device=device)
-
-# add min/max number of speakers if known
-diarize_segments = diarize_model(audio)
-# diarize_model(audio, min_speakers=min_speakers, max_speakers=max_speakers)
-
-result = whisperx.assign_word_speakers(diarize_segments, result)
-print(diarize_segments)
-print(result["segments"]) # segments are now assigned speaker IDs
+# 3. Speaker diarization (Atik Voice integration)
+# Run the separate diarize==0.1.2 stage on the vocal audio.
+# Map its start/end/speaker table onto this aligned result with:
+# result = whisperx.assign_word_speakers(diarization_dataframe, result)
+print(result["segments"])
 ```
 
 ## Demos 🚀
@@ -279,7 +269,7 @@ Bug finding and pull requests are also highly appreciated to keep this project g
 
 - [x] Python usage
 
-- [x] Incorporating speaker diarization
+- [ ] Built-in speaker diarization (handled externally in Atik Voice)
 
 - [x] Model flush, for low gpu mem resources
 
@@ -313,12 +303,7 @@ This work, and my PhD, is supported by the [VGG (Visual Geometry Group)](https:/
 
 Of course, this is builds on [openAI's whisper](https://github.com/openai/whisper).
 Borrows important alignment code from [PyTorch tutorial on forced alignment](https://pytorch.org/tutorials/intermediate/forced_alignment_with_torchaudio_tutorial.html)
-And uses the wonderful pyannote VAD / Diarization https://github.com/pyannote/pyannote-audio
-
-Valuable VAD & Diarization Models from:
-
-- [pyannote-audio](https://github.com/pyannote/pyannote-audio) — Speaker diarization powered by the [speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1) model, licensed under [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/) by [pyannoteAI](https://www.pyannote.ai)
-- [silero-vad](https://github.com/snakers4/silero-vad)
+Uses [silero-vad](https://github.com/snakers4/silero-vad) for voice activity detection. Speaker diarization is intentionally external to this WhisperX fork and is supplied by Atik Voice's `diarize==0.1.2` stage.
 
 Great backend from [faster-whisper](https://github.com/guillaumekln/faster-whisper) and [CTranslate2](https://github.com/OpenNMT/CTranslate2)
 

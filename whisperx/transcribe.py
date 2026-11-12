@@ -9,7 +9,6 @@ import torch
 from whisperx.alignment import align, load_align_model
 from whisperx.asr import load_model
 from whisperx.audio import load_audio
-from whisperx.diarize import DiarizationPipeline, assign_word_speakers
 from whisperx.schema import AlignedTranscriptionResult, TranscriptionResult
 from whisperx.utils import LANGUAGES, TO_LANGUAGE_CODE, get_writer
 from whisperx.log_utils import get_logger
@@ -50,23 +49,14 @@ def transcribe_task(args: dict, parser: argparse.ArgumentParser):
 
     return_char_alignments: bool = args.pop("return_char_alignments")
 
-    hf_token: str = args.pop("hf_token")
     vad_method: str = args.pop("vad_method")
     vad_onset: float = args.pop("vad_onset")
     vad_offset: float = args.pop("vad_offset")
 
     chunk_size: int = args.pop("chunk_size")
 
-    diarize: bool = args.pop("diarize")
-    min_speakers: int = args.pop("min_speakers")
-    max_speakers: int = args.pop("max_speakers")
-    diarize_model_name: str = args.pop("diarize_model")
     print_progress: bool = args.pop("print_progress")
-    return_speaker_embeddings: bool = args.pop("speaker_embeddings")
     interleaved_context: bool = args.pop("interleaved_context", False)
-
-    if return_speaker_embeddings and not diarize:
-        warnings.warn("--speaker_embeddings has no effect without --diarize")
 
     if args["language"] is not None:
         args["language"] = args["language"].lower()
@@ -142,7 +132,7 @@ def transcribe_task(args: dict, parser: argparse.ArgumentParser):
         task=task,
         local_files_only=model_cache_only,
         threads=faster_whisper_threads,
-        use_auth_token=hf_token,
+        use_auth_token=None,
     )
 
     for audio_path in args.pop("audio"):
@@ -207,33 +197,8 @@ def transcribe_task(args: dict, parser: argparse.ArgumentParser):
         gc.collect()
         torch.cuda.empty_cache()
 
-    # >> Diarize
-    if diarize:
-        if hf_token is None:
-            logger.warning(
-                "No --hf_token provided, needs to be saved in environment variable, otherwise will throw error loading diarization model"
-            )
-        tmp_results = results
-        logger.info("Performing diarization...")
-        logger.info(f"Using model: {diarize_model_name}")
-        results = []
-        diarize_model = DiarizationPipeline(model_name=diarize_model_name, token=hf_token, device=device, cache_dir=model_dir)
-        for result, input_audio_path in tmp_results:
-            diarize_result = diarize_model(
-                input_audio_path, 
-                min_speakers=min_speakers, 
-                max_speakers=max_speakers, 
-                return_embeddings=return_speaker_embeddings
-            )
-
-            if return_speaker_embeddings:
-                diarize_segments, speaker_embeddings = diarize_result
-            else:
-                diarize_segments = diarize_result
-                speaker_embeddings = None
-
-            result = assign_word_speakers(diarize_segments, result, speaker_embeddings)
-            results.append((result, input_audio_path))
+    # Speaker diarization is intentionally handled by Atik Voice's
+    # dedicated diarize==0.1.2 stage outside WhisperX.
     # >> Write
     for result, audio_path in results:
         result["language"] = align_language

@@ -14,7 +14,7 @@ from transformers.pipelines.pt_utils import PipelineIterator
 
 from whisperx.audio import N_SAMPLES, SAMPLE_RATE, load_audio, log_mel_spectrogram
 from whisperx.schema import SingleSegment, TranscriptionResult, ProgressCallback
-from whisperx.vads import Vad, Silero, Pyannote
+from whisperx.vads import Vad, Silero
 from whisperx.log_utils import get_logger
 
 logger = get_logger(__name__)
@@ -293,13 +293,15 @@ class FasterWhisperPipeline(Pipeline):
                 yield {'inputs': audio[f1:f2]}
 
         # Pre-process audio and merge chunks as defined by the respective VAD child class 
-        # In case vad_model is manually assigned (see 'load_model') follow the functionality of pyannote toolkit
+        # Custom VAD implementations must follow the WhisperX Vad interface.
         if issubclass(type(self.vad_model), Vad):
             waveform = self.vad_model.preprocess_audio(audio)
             merge_chunks =  self.vad_model.merge_chunks
         else:
-            waveform = Pyannote.preprocess_audio(audio)
-            merge_chunks = Pyannote.merge_chunks
+            raise TypeError(
+                "Custom VAD models must inherit whisperx.vads.Vad and implement "
+                "preprocess_audio() and merge_chunks()."
+            )
 
         vad_segments = self.vad_model({"waveform": waveform, "sample_rate": SAMPLE_RATE})
         vad_segments = merge_chunks(
@@ -467,7 +469,7 @@ def load_model(
     asr_options: Optional[dict] = None,
     language: Optional[str] = None,
     vad_model: Optional[Vad]= None,
-    vad_method: Optional[str] = "pyannote",
+    vad_method: Optional[str] = "silero",
     vad_options: Optional[dict] = None,
     model: Optional[WhisperModel] = None,
     task="transcribe",
@@ -569,14 +571,10 @@ def load_model(
     else:
         if vad_method == "silero":
             vad_model = Silero(**default_vad_options)
-        elif vad_method == "pyannote":
-            if device == 'cuda':
-                device_vad = f'cuda:{device_index}'
-            else:
-                device_vad = device
-            vad_model = Pyannote(torch.device(device_vad), token=None, **default_vad_options)
         else:
-            raise ValueError(f"Invalid vad_method: {vad_method}")
+            raise ValueError(
+                f"Unsupported vad_method: {vad_method!r}. This fork supports only 'silero'."
+            )
 
     return FasterWhisperPipeline(
         model=model,

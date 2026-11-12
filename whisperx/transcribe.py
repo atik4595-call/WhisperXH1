@@ -198,7 +198,7 @@ def transcribe_task(args: dict, parser: argparse.ArgumentParser):
         torch.cuda.empty_cache()
 
     # Speaker diarization is intentionally handled by Atik Voice's
-    # dedicated diarize==0.1.2 stage, not by WhisperX/Pyannote.
+    # dedicated diarize==0.1.2 stage outside WhisperX.
     # >> Write
     for result, audio_path in results:
         result["language"] = align_language

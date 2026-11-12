@@ -1,54 +1,47 @@
 from typing import Optional
 
-import pandas as pd
-from pyannote.core import Annotation, Segment
-
 
 class Vad:
     def __init__(self, vad_onset):
         if not (0 < vad_onset < 1):
-            raise ValueError(
-                "vad_onset is a decimal value between 0 and 1."
-            )
+            raise ValueError("vad_onset is a decimal value between 0 and 1.")
 
     @staticmethod
     def preprocess_audio(audio):
-        pass
+        raise NotImplementedError
 
-    # keep merge_chunks as static so it can be also used by manually assigned vad_model (see 'load_model')
     @staticmethod
-    def merge_chunks(segments,
-                     chunk_size,
-                     onset: float,
-                     offset: Optional[float]):
-        """
-         Merge operation described in paper
-         """
-        curr_end = 0
-        merged_segments = []
-        seg_idxs: list[tuple]= []
-        speaker_idxs: list[Optional[str]] = []
+    def merge_chunks(segments, chunk_size, onset: float, offset: Optional[float]):
+        """Merge WhisperX speech segments into inference chunks."""
+        if not segments:
+            return []
 
+        if chunk_size <= 0:
+            raise ValueError("chunk_size must be greater than zero")
+
+        merged_segments = []
         curr_start = segments[0].start
-        for seg in segments:
-            if seg.end - curr_start > chunk_size and curr_end - curr_start > 0:
+        curr_end = segments[0].end
+        segment_indexes = [(segments[0].start, segments[0].end)]
+
+        for seg in segments[1:]:
+            # Keep adjacent speech regions together until the configured chunk
+            # duration is reached. The next region starts a new chunk.
+            if seg.end - curr_start > chunk_size and curr_end > curr_start:
                 merged_segments.append({
                     "start": curr_start,
                     "end": curr_end,
-                    "segments": seg_idxs,
+                    "segments": segment_indexes,
                 })
                 curr_start = seg.start
-                seg_idxs = []
-                speaker_idxs = []
+                segment_indexes = []
+
             curr_end = seg.end
-            seg_idxs.append((seg.start, seg.end))
-            speaker_idxs.append(seg.speaker)
-        # add final
+            segment_indexes.append((seg.start, seg.end))
+
         merged_segments.append({
             "start": curr_start,
             "end": curr_end,
-            "segments": seg_idxs,
+            "segments": segment_indexes,
         })
-
         return merged_segments
-

@@ -36,7 +36,7 @@ def cli():
     parser.add_argument("--return_char_alignments", action='store_true', help="Return character-level alignments in the output json file")
 
     # vad params
-    parser.add_argument("--vad_method", type=str, default="silero", choices=["silero"], help="VAD method (Silero only; Pyannote removed)")
+    parser.add_argument("--vad_method", type=str, default="silero", choices=["silero"], help="VAD method (Silero only)")
     parser.add_argument("--vad_onset", type=float, default=0.500, help="Silero VAD speech threshold; lower it to detect quieter speech")
     parser.add_argument("--vad_offset", type=float, default=0.363, help="Reserved compatibility setting; Silero uses vad_onset")
     parser.add_argument("--chunk_size", type=int, default=30, help="Chunk size for merging VAD segments. Default is 30, reduce this if the chunk is too long.")

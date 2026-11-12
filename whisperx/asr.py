@@ -293,7 +293,7 @@ class FasterWhisperPipeline(Pipeline):
                 yield {'inputs': audio[f1:f2]}
 
         # Pre-process audio and merge chunks as defined by the respective VAD child class 
-        # In case vad_model is manually assigned (see 'load_model') follow the functionality of pyannote toolkit
+        # Custom VAD implementations must follow the WhisperX Vad interface.
         if issubclass(type(self.vad_model), Vad):
             waveform = self.vad_model.preprocess_audio(audio)
             merge_chunks =  self.vad_model.merge_chunks
